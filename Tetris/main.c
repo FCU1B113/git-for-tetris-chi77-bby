@@ -224,7 +224,8 @@ void printCanvas(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
         }
         printf("\033[0m|\n");
     }
-
+    // 印出分數
+    printf("\033[%d;%dHScore: %d", 2, CANVAS_WIDTH * 2 + 5, state->score);
     // 輸出Next:
     printf("\033[%d;%dHNext:", 3, CANVAS_WIDTH * 2 + 5);
     // 輸出有甚麼方塊
@@ -303,8 +304,9 @@ bool move(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], int originalX, int original
     return true;
 }
 
-int clearLine(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH])
+int clearLine(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
 {
+    // 移除 current 標記
     for (int i = 0; i < CANVAS_HEIGHT; i++)
     {
         for (int j = 0; j < CANVAS_WIDTH; j++)
@@ -322,28 +324,83 @@ int clearLine(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH])
         bool isFull = true;
         for (int j = 0; j < CANVAS_WIDTH; j++)
         {
-            if (canvas[i][j].shape == EMPTY) {
+            if (canvas[i][j].shape == EMPTY)
+            {
                 isFull = false;
                 break;
             }
         }
-        if (isFull) {
-            linesCleared += 1;
 
+        if (isFull)
+        {
+            linesCleared++;
+
+            // 閃爍行 (用真實 state)
+            for (int blink = 0; blink < 3; blink++)
+            {
+                for (int j = 0; j < CANVAS_WIDTH; j++)
+                {
+                    canvas[i][j].color = (blink % 2 == 0) ? WHITE : BLACK;
+                }
+                printCanvas(canvas, state);  // ? 傳入實際狀態
+                Sleep(100);
+            }
+
+            // 將上方往下移
             for (int j = i; j > 0; j--)
             {
                 for (int k = 0; k < CANVAS_WIDTH; k++)
                 {
-                    setBlock(&canvas[j][k], canvas[j - 1][k].color, canvas[j - 1][k].shape, false);
-                    resetBlock(&canvas[j - 1][k]);
+                    canvas[j][k] = canvas[j - 1][k];
                 }
             }
-            i++;
+
+            // 最上方行清空
+            for (int k = 0; k < CANVAS_WIDTH; k++)
+            {
+                resetBlock(&canvas[0][k]);
+            }
+
+            i++; // 重新檢查此行
         }
     }
+
     return linesCleared;
 }
 
+void showStartScreen() {
+    system("cls");
+    printf("\033[0;0H");
+    printf("\n\n\n\n");
+    printf("      \033[36mTETRIS 遊戲\033[0m\n");
+    printf("  -------------------------\n");
+    printf("     ← →：移動方塊\n");
+    printf("     ↑：旋轉方塊\n");
+    printf("     ↓：快速下降\n");
+    printf("     空白鍵：瞬間落下\n");
+    printf("  -------------------------\n");
+    printf("     \033[32m按任意鍵開始...\033[0m\n");
+    while (!_kbhit()) {
+        Sleep(100);
+    }
+    _getch(); // 等待任意鍵
+}
+
+void showGameOverScreen(int score) {
+    system("cls");
+    printf("\033[0;0H");
+    printf("\n\n\n\n");
+    printf("      \033[41m GAME OVER \033[0m\n");
+    printf("  -------------------------\n");
+    printf("     你的分數：%d\n", score);
+    printf("  -------------------------\n");
+    printf("     \033[33m按任意鍵離開...\033[0m\n");
+    while (!_kbhit()) {
+        Sleep(100);
+    }
+    _getch();
+    exit(0);
+}
 
 void logic(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
 {
@@ -389,7 +446,7 @@ void logic(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
         }
         else
         {
-            state->score += clearLine(canvas);
+            state->score += clearLine(canvas, state);
 
             state->x = CANVAS_WIDTH / 2;
             state->y = 0;
@@ -404,7 +461,7 @@ void logic(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
             if (!move(canvas, state->x, state->y, state->rotate, state->x, state->y, state->rotate, state->queue[0]))
             {
                 printf("\033[%d;%dH\x1b[41m GAME OVER \x1b[0m\033[%d;%dH", CANVAS_HEIGHT - 3, CANVAS_WIDTH * 2 + 5, CANVAS_HEIGHT + 5, 0);
-                exit(0);//結束遊戲
+                showGameOverScreen(state->score);
             }
         }
     }
@@ -413,6 +470,7 @@ void logic(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
 
 int main()
 {
+    showStartScreen();
     srand(time(NULL));
     State state = {
         .x = CANVAS_WIDTH / 2,
