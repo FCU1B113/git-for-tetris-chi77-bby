@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <time.h>
 #include <windows.h>
+#include <conio.h>
 
 #define CANVAS_WIDTH 10
 #define CANVAS_HEIGHT 20
@@ -306,7 +307,7 @@ bool move(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], int originalX, int original
 
 int clearLine(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
 {
-    // 移除 current 標記
+    // 先清除所有 current 標記
     for (int i = 0; i < CANVAS_HEIGHT; i++)
     {
         for (int j = 0; j < CANVAS_WIDTH; j++)
@@ -319,7 +320,8 @@ int clearLine(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
     }
 
     int linesCleared = 0;
-    for (int i = CANVAS_HEIGHT - 1; i >= 0; i--)
+    int i = CANVAS_HEIGHT - 1;
+    while (i >= 0)
     {
         bool isFull = true;
         for (int j = 0; j < CANVAS_WIDTH; j++)
@@ -335,18 +337,28 @@ int clearLine(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
         {
             linesCleared++;
 
-            // 閃爍行 (用真實 state)
-            for (int blink = 0; blink < 3; blink++)
+            // 方塊逐格往兩側掉落動畫
+            int left = CANVAS_WIDTH / 2 - 1;
+            int right = CANVAS_WIDTH / 2;
+
+            while (left >= 0 || right < CANVAS_WIDTH)
             {
-                for (int j = 0; j < CANVAS_WIDTH; j++)
+                if (left >= 0)
                 {
-                    canvas[i][j].color = (blink % 2 == 0) ? WHITE : BLACK;
+                    resetBlock(&canvas[i][left]);
+                    left--;
                 }
-                printCanvas(canvas, state);  // ? 傳入實際狀態
+                if (right < CANVAS_WIDTH)
+                {
+                    resetBlock(&canvas[i][right]);
+                    right++;
+                }
+
+                printCanvas(canvas, state);
                 Sleep(100);
             }
 
-            // 將上方往下移
+            // 將上方方塊往下移一行
             for (int j = i; j > 0; j--)
             {
                 for (int k = 0; k < CANVAS_WIDTH; k++)
@@ -355,18 +367,25 @@ int clearLine(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
                 }
             }
 
-            // 最上方行清空
+            // 清空最頂行
             for (int k = 0; k < CANVAS_WIDTH; k++)
             {
                 resetBlock(&canvas[0][k]);
             }
 
-            i++; // 重新檢查此行
+            // 消除一行後不往上移，因為上方方塊掉下來後還要檢查這一行
+            // 所以 i 不減
+        }
+        else
+        {
+            i--;  // 這行不滿，往上檢查下一行
         }
     }
 
     return linesCleared;
 }
+
+
 
 void showStartScreen() {
     system("cls");
@@ -401,6 +420,26 @@ void showGameOverScreen(int score) {
     _getch();
     exit(0);
 }
+
+void fadeOutFullScreen() {
+    // 取得整個畫面高度 (包含遊戲欄位和旁邊顯示)
+    int totalRows = CANVAS_HEIGHT + 10; // 你可以根據實際畫面調整高度
+
+    // 每行從上往下覆蓋空白
+    for (int row = 0; row < totalRows; row++) {
+        // 移動游標到該行起始位置
+        printf("\033[%d;0H", row + 1); // ANSI escape codes，行數從1開始
+
+        // 輸出空白填滿整行（假設80字元寬度）
+        for (int i = 0; i < 80; i++) {
+            printf(" ");
+        }
+        fflush(stdout);
+
+        Sleep(50); // 暫停 50 毫秒，慢慢消失效果
+    }
+}
+
 
 void logic(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
 {
@@ -448,6 +487,7 @@ void logic(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
         {
             state->score += clearLine(canvas, state);
 
+
             state->x = CANVAS_WIDTH / 2;
             state->y = 0;
             state->rotate = 0;
@@ -461,6 +501,7 @@ void logic(Block canvas[CANVAS_HEIGHT][CANVAS_WIDTH], State* state)
             if (!move(canvas, state->x, state->y, state->rotate, state->x, state->y, state->rotate, state->queue[0]))
             {
                 printf("\033[%d;%dH\x1b[41m GAME OVER \x1b[0m\033[%d;%dH", CANVAS_HEIGHT - 3, CANVAS_WIDTH * 2 + 5, CANVAS_HEIGHT + 5, 0);
+                fadeOutFullScreen();
                 showGameOverScreen(state->score);
             }
         }
